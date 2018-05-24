@@ -7,26 +7,27 @@ import (
 )
 
 type NatsProxy struct {
+	nc *nats.Conn
 }
 
-func (c NatsProxy) Register(serviceName ServiceName, service Service) error {
-	nc, _ := nats.Connect(nats.DefaultURL)
-
-	// Simple Publisher
-	nc.Publish("foo", []byte("Hello World"))
-
-	// Simple Async Subscriber
+func (proxy NatsProxy) Register(serviceName ServiceName, service Service) error {
+	nc := proxy.nc
+	// 注册服务
 	nc.Subscribe(serviceName, func(m *nats.Msg) {
 		// 期望得到客户的接收数据地址
 		clientAddress := string(m.Data)
 		fmt.Printf("Received a message: %s\n", clientAddress)
 		//注册服务端的接收地址
 		serverAddress := ""
-		nc.Subscribe(serverAddress, func(m *nats.Msg) {
-
-		})
+		//创建上下文
+		ctx, err := NewNatsSerivceContext(proxy, serverAddress, clientAddress)
+		if err != nil {
+			return
+		}
 		//RPC返回服务接收地址
 		nc.Publish(m.Reply, []byte(serverAddress))
+		//开始服务
+		go service(ctx)
 	})
 	return nil
 }
@@ -43,6 +44,12 @@ type NatsProxyOptions struct {
 	ServerAddress string
 }
 
-func NewNatsProxy(options NatsProxyOptions) OaaSProxy {
-	return NatsProxy{}
+func NewNatsProxy(options NatsProxyOptions) (OaaSProxy, error) {
+	nc, err := nats.Connect(nats.DefaultURL)
+	if err != nil {
+		return nil, err
+	}
+	return NatsProxy{
+		nc: nc,
+	}, nil
 }
