@@ -8,25 +8,29 @@ type Service func(ServiceContext)
 
 type ServiceContext interface {
 	Receiver
-	Sender
+	Responser
 	ServiceClient
 	// Config()
 }
 
 type ServiceClient interface {
-	Call(ServiceName) Caller
 	Watch(ServiceName) Watcher
+	Call(ServiceName) (Caller, error)
 }
 
 type Caller interface {
 	Watcher
-	Send(Data) error
+	Sender
 }
 
 type Sender interface {
-	Send(Data) error
-	Error(error)
-	Complete()
+	Send(Data) ([]byte, error)
+}
+
+type Responser interface {
+	Sender
+	Error(error) error
+	Complete() error
 }
 
 type Receiver interface {
@@ -35,7 +39,7 @@ type Receiver interface {
 
 type Watcher interface {
 	Receiver
-	Destroy()
+	Destroy() error
 }
 
 type OaaSProxy interface {

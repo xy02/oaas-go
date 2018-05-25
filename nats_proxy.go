@@ -1,47 +1,58 @@
 package oaas
 
 import (
-	"fmt"
+	"time"
 
 	nats "github.com/nats-io/go-nats"
 )
 
 type NatsProxy struct {
-	nc *nats.Conn
+	NatsServiceClient
 }
 
 func (proxy NatsProxy) Register(serviceName ServiceName, service Service) error {
 	nc := proxy.nc
 	// 注册服务
 	nc.Subscribe(serviceName, func(m *nats.Msg) {
-		// 期望得到客户的接收数据地址
-		clientAddress := string(m.Data)
-		fmt.Printf("Received a message: %s\n", clientAddress)
+		clientPort := string(m.Data)
 		//注册服务端的接收地址
-		serverAddress := ""
-		//创建上下文
-		ctx, err := NewNatsSerivceContext(proxy, serverAddress, clientAddress)
+		servicePort := "service." + RandomID()
+		//注册接收请求数据的通道
+		subIn, err := nc.SubscribeSync(servicePort)
 		if err != nil {
 			return
 		}
+		defer subIn.Unsubscribe()
 		//RPC返回服务接收地址
-		nc.Publish(m.Reply, []byte(serverAddress))
+		err = nc.Publish(m.Reply, []byte(servicePort))
+		if err != nil {
+			return
+		}
+		//创建上下文
+		ctx := NatsServiceContext{
+			NatsReceiver{
+				subIn: subIn,
+			},
+			NatsResponser{
+				NatsSender: NatsSender{
+					portOut: clientPort,
+					publish: nc.Publish,
+				},
+				broadcastPort: serviceName + ".bc",
+			},
+			NatsServiceClient{
+				nc:               nc,
+				handshakeTimeout: proxy.handshakeTimeout,
+			},
+		}
 		//开始服务
-		go service(ctx)
+		service(ctx)
 	})
 	return nil
 }
 
-func (c NatsProxy) Call(ServiceName) Caller {
-	return nil
-}
-
-func (c NatsProxy) Watch(ServiceName) Watcher {
-	return nil
-}
-
 type NatsProxyOptions struct {
-	ServerAddress string
+	ServerPort string
 }
 
 func NewNatsProxy(options NatsProxyOptions) (OaaSProxy, error) {
@@ -50,6 +61,9 @@ func NewNatsProxy(options NatsProxyOptions) (OaaSProxy, error) {
 		return nil, err
 	}
 	return NatsProxy{
-		nc: nc,
+		NatsServiceClient{
+			nc:               nc,
+			handshakeTimeout: 3 * time.Second,
+		},
 	}, nil
 }
