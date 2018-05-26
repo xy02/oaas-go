@@ -1,14 +1,7 @@
 package oaas
 
-import (
-	"math/rand"
-	"time"
-
-	"github.com/oklog/ulid"
-)
+import "github.com/xy02/oaas-go/objectid"
 
 func RandomID() string {
-	t := time.Now()
-	entropy := rand.New(rand.NewSource(t.UnixNano()))
-	return ulid.MustNew(ulid.Timestamp(t), entropy).String()
+	return objectid.New().Hex()
 }

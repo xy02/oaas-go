@@ -13,8 +13,11 @@ func main() {
 		log.Fatal(err)
 	}
 	proxy.Register("aips.taxi.data", Hello)
-	// go work(1, proxy)
-	work(2, proxy)
+	for i := 0; i < 5; i++ {
+		go work(i+1, proxy)
+	}
+	forever := make(chan bool)
+	<-forever
 }
 
 func work(id int, proxy oaas.OaaSProxy) {
@@ -26,24 +29,26 @@ func work(id int, proxy oaas.OaaSProxy) {
 	go func() {
 		for {
 			data, err := caller.Receive()
-			log.Println("onData", id, string(data))
 			if err != nil {
 				errCh <- err
 				return
 			}
+			log.Println(id, "onData", string(data))
 		}
 	}()
 	ticker := time.NewTicker(1 * time.Second)
 	for {
 		select {
-		case t := <-ticker.C:
-			err := caller.Send([]byte(t.String()))
+		case <-ticker.C:
+			data := oaas.RandomID()
+			err := caller.Send([]byte(data))
 			if err != nil {
-				log.Fatal("failedSend", id, err)
+				// log.Fatal("failedSend", id, err)
+				return
 			}
-			log.Println("sent", t.String())
+			log.Println(id, "sent", data)
 		case err := <-errCh:
-			log.Println("onError", id, err)
+			log.Println(id, "onError", err)
 		}
 	}
 }
