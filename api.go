@@ -1,48 +1,39 @@
 package oaas
 
-type Data = interface{}
+type RawData []byte
 
 type ServiceName = string
 
-type Service func(ServiceContext)
+type Subejct = string
 
-type ServiceContext interface {
-	Receiver
-	Responser
-	ServiceClient
-	// Config()
-}
+type Service func(ServiceContext) error
 
-type ServiceClient interface {
-	Watch(ServiceName) Watcher
-	Call(ServiceName) (Caller, error)
-}
+type (
+	OaaSProxy interface {
+		Register(ServiceName, Service) error
+		ServiceClient
+	}
 
-type Caller interface {
-	Watcher
-	Sender
-}
+	ServiceContext interface {
+		Receive() (RawData, error)
+		Send(RawData) error
+		ServiceClient
+		// Config()
+	}
 
-type Sender interface {
-	Send(Data) ([]byte, error)
-}
+	ServiceClient interface {
+		Call(ServiceName) (Caller, error)
+		Subscribe(Subejct) (Subscriber, error)
+		Publish(Subejct, RawData) error
+	}
 
-type Responser interface {
-	Sender
-	Error(error) error
-	Complete() error
-}
+	Caller interface {
+		Send(RawData) error
+		Subscriber
+	}
 
-type Receiver interface {
-	Receive(Data) error
-}
-
-type Watcher interface {
-	Receiver
-	Destroy() error
-}
-
-type OaaSProxy interface {
-	Register(ServiceName, Service) error
-	ServiceClient
-}
+	Subscriber interface {
+		Receive() (RawData, error)
+		Unsubscribe() error
+	}
+)
